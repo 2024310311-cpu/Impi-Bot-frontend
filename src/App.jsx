@@ -49,7 +49,22 @@ function App() {
     setDescargando(true);
     try {
       const seleccionadosObjetos = resultadosOrdenados.filter(res => seleccionados.includes(res._id));
-      const expedientesUnicos = [...new Set(seleccionadosObjetos.map(res => res.expediente).filter(Boolean))];
+      
+      const expedientesData = seleccionadosObjetos.map(res => ({
+        expediente: res.expediente,
+        denominacion: res.denominacion || "Sin_Nombre"
+      })).filter(item => item.expediente);
+      
+      // Filtramos duplicados por expediente
+      const expedientesUnicos = [];
+      const map = new Map();
+      for (const item of expedientesData) {
+        if (!map.has(item.expediente)) {
+          map.set(item.expediente, true);
+          expedientesUnicos.push(item);
+        }
+      }
+
       const res = await axios.post(`${API_URL}/api/descargar`, {
         expedientes: expedientesUnicos
       });
@@ -61,6 +76,17 @@ function App() {
         }
       });
       setLinksDescarga(nuevosLinks);
+      
+      // Descarga automática del ZIP
+      if (res.data.zip_url) {
+        const link = document.createElement('a');
+        link.href = res.data.zip_url;
+        // La etiqueta target="_blank" o download a veces es necesaria
+        link.setAttribute('download', '');
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode.removeChild(link);
+      }
       
     } catch (error) {
       alert("Hubo un error al intentar descargar los archivos oficiales.");
