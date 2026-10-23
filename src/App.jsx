@@ -1,9 +1,5 @@
 import { useState } from 'react';
-import axios from 'axios';
-
-// IMPORTANTE PARA DEPLOYMENT: 
-// Esta es la URL de tu robot en la nube (Render)
-const API_URL = "https://impi-bot.onrender.com";
+import { api, checkedSearch, errorMessage } from './api';
 
 function App() {
   const [marca, setMarca] = useState('');
@@ -26,20 +22,21 @@ function App() {
     setLinksDescarga({}); 
 
     try {
-      const response = await axios.post(`${API_URL}/api/buscar`, {
-        denominacion: marca,
+      const response = await api.post('/api/buscar', {
+        denominacion: marca.trim(),
         clase: clase
       });
+      const verified = checkedSearch(response.data);
       // Asignar un ID único a cada resultado para poder seleccionarlos de forma independiente
       const agregarId = (arr, prefix) => (arr || []).map((item, i) => ({ ...item, _id: `${prefix}-${i}` }));
       setResultados({
-        peligro_alto: agregarId(response.data.resultados.peligro_alto, 'alto'),
-        peligro_medio: agregarId(response.data.resultados.peligro_medio, 'medio'),
-        peligro_bajo: agregarId(response.data.resultados.peligro_bajo, 'bajo')
+        peligro_alto: agregarId(verified.peligro_alto, 'alto'),
+        peligro_medio: agregarId(verified.peligro_medio, 'medio'),
+        peligro_bajo: agregarId(verified.peligro_bajo, 'bajo')
       });
     } catch (error) {
       console.error("Error de conexión:", error);
-      alert("Hubo un error al conectar con el servidor IMPI.");
+      alert(errorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -65,7 +62,7 @@ function App() {
         }
       }
 
-      const res = await axios.post(`${API_URL}/api/descargar`, {
+      const res = await api.post('/api/descargar', {
         expedientes: expedientesUnicos
       });
       
@@ -76,6 +73,7 @@ function App() {
         }
       });
       setLinksDescarga(nuevosLinks);
+      if (res.data.completa === false) alert('No se pudieron obtener todos los PDF. Los expedientes disponibles siguen visibles; puedes reintentar los restantes.');
       
       // Descarga automática del ZIP
       if (res.data.zip_url) {
@@ -89,7 +87,7 @@ function App() {
       }
       
     } catch (error) {
-      alert("Hubo un error al intentar descargar los archivos oficiales.");
+      alert(errorMessage(error));
     } finally {
       setDescargando(false);
     }
@@ -110,7 +108,7 @@ function App() {
   const exportarArchivoExcel = async () => {
     setExportando(true);
     try {
-      const response = await axios.post(`${API_URL}/api/exportar-excel`, {
+      const response = await api.post('/api/exportar-excel', {
         resultados: resultadosOrdenados
       }, {
         responseType: 'blob'
@@ -123,8 +121,9 @@ function App() {
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (error) {
-      alert("Hubo un error al generar el archivo Excel.");
+      alert(errorMessage(error));
     } finally {
       setExportando(false);
     }
@@ -159,6 +158,8 @@ function App() {
               <input 
                 type="number" 
                 required
+                min="1"
+                max="45"
                 className="w-full border border-gray-300 rounded p-2 focus:ring-2 focus:ring-blue-500 outline-none"
                 placeholder="Ej. 41"
                 value={clase}
